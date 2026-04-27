@@ -12,11 +12,14 @@ st.title("Drowsiness Detector")
 
 # Function to play audio
 def play_audio(file_path):
-    with open(file_path, "rb") as f:
-        data = f.read()
-        b64 = base64.b64encode(data).decode()
-        md = f"""<audio autoplay="true"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>"""
-        st.markdown(md, unsafe_allow_html=True)
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f"""<audio autoplay="true"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>"""
+            st.markdown(md, unsafe_allow_html=True)
+    except:
+        pass
 
 # Calculation function
 def calculate_ratio(points):
@@ -30,13 +33,10 @@ EYE_AR_THRESH = 0.20
 EYE_AR_CONSEC_FRAMES = 20
 MOUTH_AR_THRESH = 0.75
 
-# Initialize MediaPipe
-mp_face_mesh = mp.solutions.face_mesh
-
 class VideoProcessor(VideoTransformerBase):
     def __init__(self):
-        # تصحيح طريقة استدعاء FaceMesh
-        self.face_mesh = mp_face_mesh.FaceMesh(
+        # طريقة استدعاء بديلة وأكثر استقراراً
+        self.face_mesh = mp.solutions.face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.5,
@@ -55,6 +55,8 @@ class VideoProcessor(VideoTransformerBase):
         image = cv2.flip(image, 1)
         h, w, _ = image.shape
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # معالجة الوجه
         results = self.face_mesh.process(rgb_image)
 
         self.drowsy_flag = False
@@ -95,13 +97,14 @@ class VideoProcessor(VideoTransformerBase):
                     cv2.rectangle(image, (0, 0), (w, h), (0, 0, 255), 20)
                     cv2.putText(image, "DROWSINESS ALERT!", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
                 
+                # رسم نقاط الوجه
                 for landmark in face_landmarks.landmark:
                     x, y = int(landmark.x * w), int(landmark.y * h)
                     cv2.circle(image, (x, y), 1, (0, 255, 0), -1)
 
         return image
 
-# UI Components
+# UI
 col1, col2 = st.columns(2)
 eye_p = col1.empty()
 yawn_p = col2.empty()

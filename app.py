@@ -1,14 +1,15 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 import cv2
 import mediapipe as mp
 import numpy as np
 from scipy.spatial import distance as dist
 import base64
 
-# استخراج الكلاسات مباشرة لتجنب AttributeError
-FaceMesh = mp.solutions.face_mesh.FaceMesh
-drawing_utils = mp.solutions.drawing_utils
+# إعدادات الاتصال STUN
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]}
+)
 
 # Page configuration
 st.set_page_config(page_title="Drowsiness Detector", layout="centered")
@@ -33,10 +34,13 @@ EYE_AR_THRESH = 0.20
 EYE_AR_CONSEC_FRAMES = 20
 MOUTH_AR_THRESH = 0.75
 
+# تعريف محرك الوجه خارج الكلاس لتجنب أخطاء الاستدعاء
+mp_face_mesh = mp.solutions.face_mesh
+mp_drawing = mp.solutions.drawing_utils
+
 class VideoProcessor(VideoTransformerBase):
     def __init__(self):
-        # استخدام الكلاس المستخرج مباشرة
-        self.face_mesh = FaceMesh(
+        self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.5,
@@ -55,6 +59,7 @@ class VideoProcessor(VideoTransformerBase):
         image = cv2.flip(image, 1)
         h, w, _ = image.shape
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
         results = self.face_mesh.process(rgb_image)
 
         self.drowsy_flag = False
@@ -62,6 +67,7 @@ class VideoProcessor(VideoTransformerBase):
 
         if results.multi_face_landmarks:
             for face_landmarks in results.multi_face_landmarks:
+                # إحداثيات العين والفم
                 LEFT_EYE = [33, 160, 158, 133, 153, 144]
                 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
                 MOUTH = [61, 81, 13, 311, 308, 178]
@@ -95,13 +101,13 @@ class VideoProcessor(VideoTransformerBase):
                     cv2.rectangle(image, (0, 0), (w, h), (0, 0, 255), 20)
                     cv2.putText(image, "DROWSINESS ALERT!", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
                 
-                # رسم ملامح الوجه باستخدام Drawing Utils
-                drawing_utils.draw_landmarks(
+                # رسم نقاط الوجه
+                mp_drawing.draw_landmarks(
                     image=image,
                     landmark_list=face_landmarks,
-                    connections=mp.solutions.face_mesh.FACEMESH_TESSELATION,
+                    connections=mp_face_mesh.FACEMESH_TESSELATION,
                     landmark_drawing_spec=None,
-                    connection_drawing_spec=drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
+                    connection_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
                 )
 
         return image
@@ -110,7 +116,12 @@ col1, col2 = st.columns(2)
 eye_p = col1.empty()
 yawn_p = col2.empty()
 
-ctx = webrtc_streamer(key="driver-monitor", video_transformer_factory=VideoProcessor)
+ctx = webrtc_streamer(
+    key="driver-monitor", 
+    video_transformer_factory=VideoProcessor,
+    rtc_configuration=RTC_CONFIGURATION,
+    media_stream_constraints={"video": True, "audio": False}
+)
 
 if ctx.video_transformer:
     eye_p.metric("Eye Close Count", ctx.video_transformer.eye_close_count)

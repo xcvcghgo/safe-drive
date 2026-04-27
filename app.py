@@ -6,11 +6,14 @@ import numpy as np
 from scipy.spatial import distance as dist
 import base64
 
+# استخراج الكلاسات مباشرة لتجنب AttributeError
+FaceMesh = mp.solutions.face_mesh.FaceMesh
+drawing_utils = mp.solutions.drawing_utils
+
 # Page configuration
 st.set_page_config(page_title="Drowsiness Detector", layout="centered")
 st.title("Drowsiness Detector")
 
-# Function to play audio
 def play_audio(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -18,25 +21,22 @@ def play_audio(file_path):
             b64 = base64.b64encode(data).decode()
             md = f"""<audio autoplay="true"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>"""
             st.markdown(md, unsafe_allow_html=True)
-    except:
-        pass
+    except: pass
 
-# Calculation function
 def calculate_ratio(points):
     A = dist.euclidean(points[1], points[5])
     B = dist.euclidean(points[2], points[4])
     C = dist.euclidean(points[0], points[3])
     return (A + B) / (2.0 * C)
 
-# Constants
 EYE_AR_THRESH = 0.20
 EYE_AR_CONSEC_FRAMES = 20
 MOUTH_AR_THRESH = 0.75
 
 class VideoProcessor(VideoTransformerBase):
     def __init__(self):
-        # طريقة استدعاء بديلة وأكثر استقراراً
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(
+        # استخدام الكلاس المستخرج مباشرة
+        self.face_mesh = FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.5,
@@ -55,8 +55,6 @@ class VideoProcessor(VideoTransformerBase):
         image = cv2.flip(image, 1)
         h, w, _ = image.shape
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # معالجة الوجه
         results = self.face_mesh.process(rgb_image)
 
         self.drowsy_flag = False
@@ -97,14 +95,17 @@ class VideoProcessor(VideoTransformerBase):
                     cv2.rectangle(image, (0, 0), (w, h), (0, 0, 255), 20)
                     cv2.putText(image, "DROWSINESS ALERT!", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
                 
-                # رسم نقاط الوجه
-                for landmark in face_landmarks.landmark:
-                    x, y = int(landmark.x * w), int(landmark.y * h)
-                    cv2.circle(image, (x, y), 1, (0, 255, 0), -1)
+                # رسم ملامح الوجه باستخدام Drawing Utils
+                drawing_utils.draw_landmarks(
+                    image=image,
+                    landmark_list=face_landmarks,
+                    connections=mp.solutions.face_mesh.FACEMESH_TESSELATION,
+                    landmark_drawing_spec=None,
+                    connection_drawing_spec=drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
+                )
 
         return image
 
-# UI
 col1, col2 = st.columns(2)
 eye_p = col1.empty()
 yawn_p = col2.empty()

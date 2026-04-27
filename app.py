@@ -6,11 +6,11 @@ import numpy as np
 from scipy.spatial import distance as dist
 import base64
 
-# إعدادات الصفحة
+# Page configuration
 st.set_page_config(page_title="Drowsiness Detector", layout="centered")
 st.title("Drowsiness Detector")
 
-# دالة تشغيل الصوت
+# Function to play audio
 def play_audio(file_path):
     with open(file_path, "rb") as f:
         data = f.read()
@@ -18,21 +18,30 @@ def play_audio(file_path):
         md = f"""<audio autoplay="true"><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>"""
         st.markdown(md, unsafe_allow_html=True)
 
-# دالة الحساب الأصلية الخاصة بك
+# Calculation function
 def calculate_ratio(points):
     A = dist.euclidean(points[1], points[5])
     B = dist.euclidean(points[2], points[4])
     C = dist.euclidean(points[0], points[3])
     return (A + B) / (2.0 * C)
 
-# الثوابت الأصلية
+# Constants
 EYE_AR_THRESH = 0.20
 EYE_AR_CONSEC_FRAMES = 20
 MOUTH_AR_THRESH = 0.75
 
+# Initialize MediaPipe
+mp_face_mesh = mp.solutions.face_mesh
+
 class VideoProcessor(VideoTransformerBase):
     def __init__(self):
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
+        # تصحيح طريقة استدعاء FaceMesh
+        self.face_mesh = mp_face_mesh.FaceMesh(
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
         self.eye_close_count = 0
         self.yawn_count = 0
         self.drowsy_flag = False
@@ -43,7 +52,7 @@ class VideoProcessor(VideoTransformerBase):
 
     def transform(self, frame):
         image = frame.to_ndarray(format="bgr24")
-        image = cv2.flip(image, 1) # تصحيح الاتجاهات
+        image = cv2.flip(image, 1)
         h, w, _ = image.shape
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb_image)
@@ -92,7 +101,7 @@ class VideoProcessor(VideoTransformerBase):
 
         return image
 
-# واجهة المستخدم
+# UI Components
 col1, col2 = st.columns(2)
 eye_p = col1.empty()
 yawn_p = col2.empty()

@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial import distance as dist
 import base64
 
-# إعدادات الاتصال STUN
+# إعدادات الاتصال STUN لضمان عمل الكاميرا
 RTC_CONFIGURATION = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]}
 )
@@ -34,12 +34,13 @@ EYE_AR_THRESH = 0.20
 EYE_AR_CONSEC_FRAMES = 20
 MOUTH_AR_THRESH = 0.75
 
-# تعريف محرك الوجه خارج الكلاس لتجنب أخطاء الاستدعاء
-mp_face_mesh = mp.solutions.face_mesh
-mp_drawing = mp.solutions.drawing_utils
+# --- طريقة استدعاء معدلة لضمان التوافق ---
+from mediapipe.python.solutions import face_mesh as mp_face_mesh
+from mediapipe.python.solutions import drawing_utils as mp_drawing
 
 class VideoProcessor(VideoTransformerBase):
     def __init__(self):
+        # تهيئة محرك الوجه
         self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
